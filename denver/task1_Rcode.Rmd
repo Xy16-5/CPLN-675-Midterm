@@ -1,0 +1,65 @@
+---
+title: "675_midterm_denver"
+author: "Gillian Xuezhu Zhao"
+date: "3/17/2021"
+output: word_document
+---
+
+```{r}
+library(tidyverse)
+library(sf)
+library(RSocrata)
+library(viridis)
+library(caret)
+library(spatstat)
+library(spdep)
+library(FNN)
+library(grid)
+library(gridExtra)
+library(knitr)
+library(kableExtra)
+library(plotROC)
+library(pROC)
+library(raster)
+
+setwd("G:\\UPenn\\CPLN675_LandUse_and_EnvironmentalModeling\\midterm\\CPLN-675-Midterm\\denver")
+
+```
+
+```{r denver fishnet}
+denver <- 
+  st_read("denver_gis/county_boundary/county_boundary.shp") %>%
+  st_transform(crs=6428) %>%
+  dplyr::filter(COUNTY=="Denver")
+
+fishnet <- 
+  st_make_grid(denver, cellsize = 500) %>%
+  st_sf()
+
+fishnet <- 
+  fishnet[denver,] %>%
+  mutate(uniqueID = rownames(.)) %>%
+  dplyr::select(uniqueID)
+
+ggplot(data=fishnet)+
+  geom_sf()
+```
+
+```{r features}
+landuse <- st_read("existing_landuse_2018\\existing_landuse_2018.shp") %>%
+  st_transform(crs=6428)
+
+basin <- st_read(".\\denver_gis\\GIS_output\\denver_boundary.shp") %>%
+  st_transform(crs=6428)
+
+stream <- st_read(".\\denver_gis\\GIS_output\\denver_stream.shp") %>%
+  st_transform(crs=6428)
+
+elevation <- raster("G:\\UPenn\\CPLN675_LandUse_and_EnvironmentalModeling\\midterm\\denver_gis\\GIS_output\\denverDEM.tif")
+elvation_1 <-
+  rasterToPoints(elevation) %>%
+  as.data.frame() %>%
+  st_as_sf(coords = c("x", "y"), crs = 3780)
+glimpse(elvation_1)
+```
+
