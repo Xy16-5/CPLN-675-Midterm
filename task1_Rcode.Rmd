@@ -1,5 +1,5 @@
 ---
-title: "675_midterm_denver"
+title: "675_midterm"
 author: "Gillian Xuezhu Zhao"
 date: "3/17/2021"
 output: word_document
@@ -25,6 +25,53 @@ library(raster)
 # Gillian's working directory
 setwd("G:\\UPenn\\CPLN675_LandUse_and_EnvironmentalModeling\\midterm\\CPLN-675-Midterm")
 
+# Nearest neighbor function
+nn_function <- function(measureFrom,measureTo,k) {
+  measureFrom_Matrix <-
+    as.matrix(measureFrom)
+  measureTo_Matrix <-
+    as.matrix(measureTo)
+  nn <-   
+    get.knnx(measureTo, measureFrom, k)$nn.dist
+    output <-
+      as.data.frame(nn) %>%
+      rownames_to_column(var = "thisPoint") %>%
+      gather(points, point_distance, V1:ncol(.)) %>%
+      arrange(as.numeric(thisPoint)) %>%
+      group_by(thisPoint) %>%
+      summarize(pointDistance = mean(point_distance)) %>%
+      arrange(as.numeric(thisPoint)) %>% 
+      dplyr::select(-thisPoint) %>%
+      pull()
+  
+  return(output)  
+}
+
+# Map theme for maps
+mapTheme <- function(base_size = 12) {
+  theme(
+    text = element_text( color = "black"),
+    plot.title = element_text(size = 14,colour = "black"),
+    plot.subtitle=element_text(face="italic"),
+    plot.caption=element_text(hjust=0),
+    plot.background = element_blank(),
+    axis.ticks = element_blank(),
+    panel.background = element_blank(),axis.title = element_blank(),
+    axis.text = element_blank(),
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    panel.grid.minor = element_blank(),
+  )
+}
+
+# Color for ggplots
+## Calgary
+c_colors_hex <- c("#4a6fa5", "#dbe9ee")
+names(c_colors_hex) <- c("land", "stream")
+## Denver
+d_colors_hex <- c("#4f6d7a", "#c0d6df")
+names(d_colors_hex) <- c("land", "stream")
+
 ```
 
 # Calgary
@@ -45,7 +92,8 @@ c_fishnet <-
   dplyr::select(uniqueID)
 
 ggplot(data=c_fishnet)+
-  geom_sf()
+  geom_sf(color=c_colors_hex[["stream"]], fill=c_colors_hex[["land"]]) +
+  mapTheme()
 ```
 
 # Denver
@@ -66,7 +114,8 @@ d_fishnet <-
   dplyr::select(uniqueID)
 
 ggplot(data=d_fishnet)+
-  geom_sf()
+  geom_sf(color=d_colors_hex[["stream"]], fill=d_colors_hex[["land"]]) +
+  mapTheme()
 ```
 
 ```{r features}
@@ -79,7 +128,9 @@ d_basin <- st_read("denver\\denver_basin\\denver_boundary.shp") %>%
 d_stream <- st_read("denver\\denver_stream\\denver_stream.shp") %>%
   st_transform(crs=6428)
 
-ggplot(data=d_stream) +
-  geom_sf()
+ggplot() +
+  geom_sf(data=d_boundary, fill=d_colors_hex[["land"]]) + 
+  geom_sf(data=d_stream, color=d_colors_hex[["stream"]]) +
+  mapTheme()
 
 ```
