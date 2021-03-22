@@ -1,0 +1,149 @@
+---
+title: "675_midterm"
+author: "Gillian Xuezhu Zhao"
+date: "3/17/2021"
+output: word_document
+---
+# Load libraries and setup
+```{r setup}
+library(dplyr)
+library(tidyverse)
+library(sf)
+library(RSocrata)
+library(viridis)
+library(caret)
+library(spatstat)
+library(spdep)
+library(FNN)
+library(grid)
+library(gridExtra)
+library(knitr)
+library(kableExtra)
+library(plotROC)
+library(pROC)
+library(raster)
+
+# Gillian's working directory
+setwd("G:\\UPenn\\CPLN675_LandUse_and_EnvironmentalModeling\\midterm\\CPLN-675-Midterm")
+
+# Nearest neighbor function
+nn_function <- function(measureFrom,measureTo,k) {
+  measureFrom_Matrix <-
+    as.matrix(measureFrom)
+  measureTo_Matrix <-
+    as.matrix(measureTo)
+  nn <-   
+    get.knnx(measureTo, measureFrom, k)$nn.dist
+    output <-
+      as.data.frame(nn) %>%
+      rownames_to_column(var = "thisPoint") %>%
+      gather(points, point_distance, V1:ncol(.)) %>%
+      arrange(as.numeric(thisPoint)) %>%
+      group_by(thisPoint) %>%
+      summarize(pointDistance = mean(point_distance)) %>%
+      arrange(as.numeric(thisPoint)) %>% 
+      dplyr::select(-thisPoint) %>%
+      pull()
+  
+  return(output)  
+}
+
+# Map theme for maps
+mapTheme <- function(base_size = 12) {
+  theme(
+    text = element_text( color = "black"),
+    plot.title = element_text(size = 14,colour = "black"),
+    plot.subtitle=element_text(face="italic"),
+    plot.caption=element_text(hjust=0),
+    plot.background = element_blank(),
+    axis.ticks = element_blank(),
+    panel.background = element_blank(),axis.title = element_blank(),
+    axis.text = element_blank(),
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    panel.grid.minor = element_blank(),
+  )
+}
+
+# Color for ggplots
+## Calgary
+c_colors_hex <- c("#4a6fa5", "#dbe9ee")
+names(c_colors_hex) <- c("land", "stream")
+## Denver
+d_colors_hex <- c("#4f6d7a", "#c0d6df")
+names(d_colors_hex) <- c("land", "stream")
+
+```
+
+# Calgary
+## Load in features (from task 1)
+```{r additional feature manipulation}
+c_vars_net <- st_read("c_vars_net.shp")
+```
+
+## Visualize features in fishnet grid
+```{r fishnet feature visualization}
+c_vars <- 
+  c_vars_net %>%
+  dplyr::select(elevatn, 
+                slope, gntlSlp, stepSlp, 
+                gntlS_1, gntlS_2, gntlS_3, 
+                stpSl_1, stpSl_2, stpSl_3,
+                mainBsn, 
+                dwnst_1, dwnst_2, dwnst_3)
+
+c_vars_long <- 
+  c_vars %>%
+  gather(Variable, value, -geometry)
+
+c_vars <- unique(c_vars_long$Variable)
+c_mapList <- list()
+
+for(i in c_vars){
+  c_mapList[[i]] <- 
+    ggplot() +
+    geom_sf(data = filter(c_vars_long, Variable == i), aes(fill=value), colour=NA) +
+    scale_fill_viridis(name="") +
+    labs(title=i) +
+    mapTheme()}
+
+do.call(grid.arrange,c(c_mapList, ncol =4, top = "Risk Factors by Fishnet"))
+```
+
+# Denver
+## Load in features (from task 1)
+```{r additional feature manipulation}
+d_vars_net <- st_read("d_vars_net.shp")
+```
+
+## Visualize features in fishnet grid
+```{r fishnet feature visualization}
+d_vars <- 
+  d_vars_net %>%
+  dplyr::select(elevatn, 
+                slope, gntlSlp, stepSlp, 
+                gntlS_1, gntlS_2, gntlS_3, 
+                stpSl_1, stpSl_2, stpSl_3,
+                mainBsn, 
+                dwnst_1, dwnst_2, dwnst_3)
+
+d_vars_long <- 
+  d_vars %>%
+  gather(Variable, value, -geometry)
+
+d_vars <- unique(d_vars_long$Variable)
+d_mapList <- list()
+
+for(i in d_vars){
+  d_mapList[[i]] <- 
+    ggplot() +
+    geom_sf(data = filter(d_vars_long, Variable == i), aes(fill=value), colour=NA) +
+    scale_fill_viridis(name="") +
+    labs(title=i) +
+    mapTheme()}
+
+do.call(grid.arrange,c(d_mapList, ncol =4, top = "Risk Factors by Fishnet"))
+```
+
+
+
