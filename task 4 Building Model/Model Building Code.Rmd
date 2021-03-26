@@ -24,13 +24,13 @@ library(ROCR)
 library(pROC)
 library(raster)
 library(stargazer)
-
+library(spatstat)
 
 # Gillian's working directory
-#setwd("G:\\UPenn\\CPLN675_LandUse_and_EnvironmentalModeling\\midterm\\CPLN-675-Midterm")
+setwd("G:\\UPenn\\CPLN675_LandUse_and_EnvironmentalModeling\\midterm\\CPLN-675-Midterm\\task 4 Building Model")
 
 # Xinyi's working directory
-setwd("/Users/xinyi/Desktop/Courses/Land Use and Environmental Modeling/Midterm/task 4 Building Model")
+#setwd("/Users/xinyi/Desktop/Courses/Land Use and Environmental Modeling/Midterm/task 4 Building Model")
 
 # Nearest neighbor function
 nn_function <- function(measureFrom,measureTo,k) {
@@ -54,6 +54,43 @@ nn_function <- function(measureFrom,measureTo,k) {
   return(output)  
 }
 
+crossValidate <- function(dataset, id, dependentVariable, indVariables) {
+
+allPredictions <- data.frame()
+cvID_list <- unique(dataset[[id]])
+
+for (i in cvID_list) {
+
+  thisFold <- i
+  cat("This hold out fold is", thisFold, "\n")
+
+  fold.train <- filter(dataset, dataset[[id]] != thisFold) %>% as.data.frame() %>% 
+                dplyr::select(id, geometry, indVariables, dependentVariable)
+  fold.test  <- filter(dataset, dataset[[id]] == thisFold) %>% as.data.frame() %>% 
+                dplyr::select(id, geometry, indVariables, dependentVariable)
+  
+  regression <-
+    glm(flood ~.,family = "binomial"(link="logit"),
+      data = fold.train %>% 
+      dplyr::select(-geometry, -id))
+  
+  thisPrediction <- 
+    mutate(fold.test, Prediction = predict(regression, fold.test, type = "response"))
+    
+  allPredictions <-
+    rbind(allPredictions, thisPrediction)
+    
+  }
+  return(allPredictions)
+}
+# cvFit <- train(as.factor(flood) ~ .,  data = c_final3 %>% 
+#                                              as.data.frame() %>%
+#                                              dplyr::select(-geometry)%>%
+#                                              mutate(flood = ifelse(flood==1,'yes','no')), 
+#                method="glm", family="binomial",
+#                metric="ROC",
+#                trControl = ctrl,
+#                na.action=na.exclude)
 # Map theme for maps
 mapTheme <- function(base_size = 12) {
   theme(
@@ -73,11 +110,9 @@ mapTheme <- function(base_size = 12) {
 
 # Color for ggplots
 ## Calgary
-c_colors_hex <- c("#4a6fa5", "#dbe9ee")
-names(c_colors_hex) <- c("land", "stream")
+c_colors_hex <- c("#dbe9ee", "#4a6fa5")
 ## Denver
-d_colors_hex <- c("#4f6d7a", "#c0d6df")
-names(d_colors_hex) <- c("land", "stream")
+d_colors_hex <- c("#c0d6df", "#4f6d7a")
 
 ```
 
@@ -219,7 +254,7 @@ c_flood_net<-
 ```{r}
 ggplot()+
   geom_sf(data=c_flood_net ,aes (fill=as.factor(c_flood)),color=NA) +
-  scale_fill_manual (values = c('grey','dark red'),
+  scale_fill_manual (values = c(c_colors_hex),
                      labels = c('No inundation','Inundation'))+
   labs(title= 'Calgary Flood Inundation')+
   mapTheme()+
@@ -344,7 +379,7 @@ c_plot_vars<-
 ggplot(c_plot_vars, aes(as.factor(flood),value, fill=as.factor(flood)))+
   geom_bar(stat="identity")+
   facet_wrap(~key)+
-  scale_fill_manual(values=c("grey","darkred"),
+  scale_fill_manual(values=c(c_colors_hex),
                     labels = c("No Inundation","Inundation"),
                     name="")+
   labs(x="Flood",y="Value")
@@ -359,7 +394,7 @@ c_plot_Basin<-
 
 ggplot(c_plot_Basin, aes(x=as.factor(flood), y=count,fill=as.factor(mainBsn)))+
   geom_bar(stat="identity",position ="stack")+
-  scale_fill_manual(values=c("grey","darkred"),
+  scale_fill_manual(values=c(c_colors_hex),
                     labels = c("Not Main Watershed","Main Watershed"),
                     name="")+
   labs(x="Flood",y="Count")
@@ -373,8 +408,8 @@ testProbs <- data.frame (obs = as.numeric(modelTest$flood),pred = classProbs)
 
 ggplot(testProbs, aes(x=pred, fill = as.factor(obs)))+
   geom_density()+
-  facet_grid(obs~.) + xlab('Probability') + geom_vline(xintercept = .5) +
-  scale_fill_manual(values = c("grey", "dark red"),
+  facet_grid(obs~.) + xlab('Probability') + geom_vline(xintercept = .432, color ="52b69a", size=1) +
+  scale_fill_manual(values = c(c_colors_hex),
                       labels = c("No Inundation","Inundation"),
                       name = "")
 
@@ -411,7 +446,7 @@ caret::confusionMatrix(reference = as.factor(testProbs$obs),
 
 ```{r}
 ggplot(testProbs, aes(d = obs, m = pred)) + 
-  geom_roc(n.cuts = 50, labels = FALSE) + 
+  geom_roc(n.cuts = 50, labels = FALSE, color="#52b69a") + 
   style_roc(theme = theme_grey) +
   geom_abline(slope = 1, intercept = 0, size = 1.5, color = 'grey') 
 
@@ -443,14 +478,48 @@ dplyr::select(cvFit$resample, -Resample) %>%
   gather(metric, value) %>%
   left_join(gather(cvFit$results[2:4], metric, mean)) %>%
   ggplot(aes(value)) + 
-    geom_histogram(bins=35, fill = "#FF006A") +
+    geom_histogram(bins=35, fill = "#4a6fa5") +
     facet_wrap(~metric) +
-    geom_vline(aes(xintercept = mean), colour = "#981FAC", linetype = 3, size = 1.5) +
+    geom_vline(aes(xintercept = mean), colour = "#52b69a", linetype = 3, size = 1.5) +
     scale_x_continuous(limits = c(0, 1)) +
     labs(x="Goodness of Fit", y="Count", title="CV Goodness of Fit Metrics for Flood Inundation Model",
          subtitle = "Across-fold mean reprented as dotted lines")
 
-cvFit$results
+b <- cvFit$results
+
+a <- dplyr::select(cvFit$resample, -Resample) %>%
+  gather(metric, value) %>%
+  left_join(gather(cvFit$results[2:4], metric, mean))
+```
+
+# Spatial CV
+```{r}
+indVars <- c("flood","elevatn","gntlSlp","resist","ndvi","gntlS_3")
+cv_net <- model_var_net %>%
+   dplyr::select(flood,elevatn,gntlSlp,resist,ndvi,gntlS_3) %>%
+   mutate(uniqueID = rownames(.),
+         cvID = sample(round(nrow(c_fishnet) / 24), size=nrow(c_fishnet), replace = TRUE))
+reg.cv <- crossValidate(
+  dataset = cv_net,
+  id = "cvID",
+  dependentVariable = "flood",
+  indVariables = indVars) %>%
+    dplyr::select(cvID = cvID, flood, Prediction, geometry) # by k-fold
+reg.cv_result <- 
+  left_join(reg.cv, cv_net, by="cvID", na.rm=T)
+allvalues <- unique(union(reg.cv_result$flood.x, reg.cv_result$flood.y))
+reg.cv_result <- 
+  reg.cv_result %>%
+    group_by(cvID) %>% 
+    summarize(Sens = sensitivity(factor(flood.x, levels = allvalues), factor(flood.y, levels = allvalues), positive=1)) %>%
+  ungroup()
+spatial.cv <- 
+  left_join(cv_net, reg.cv_result, by="cvID", na.rm=T)
+
+ggplot(data = spatial.cv) +
+    geom_sf(aes(fill = Sens)) +
+    scale_fill_viridis() +
+    mapTheme() + theme(legend.position="bottom")
 ```
 
 # Calgary Flood Predictions
@@ -477,13 +546,16 @@ c_final3<-
 ```{r}
 ggplot() + 
   geom_sf(data=c_final3, aes(fill=factor(ntile(allPredictions,5))), colour=NA) +
-  scale_fill_manual(values = c("#edf8fb","#b3cde3","#8c96c6","#8856a7","#810f7c"),
+                              scale_fill_brewer(type = "seq",
+                              palette = 1,
+                              direction = 1,
+                              aesthetics = "fill",
                     labels=as.character(quantile(c_final3$allPredictions,
                                                  c(0.1,.2,.4,.6,.8),na.rm=T)),
                     name="Predicted\nProbabilities(%)\n(Quintile\nBreaks)") +
   geom_sf(data=c_flood_net %>% 
                filter(c_flood == 1), 
-               fill="red",colour=NA) +
+               fill="#ee6c4d",colour=NA) +
   mapTheme() +
   labs(title="Predicted Probabilities and Past Flood",
        subtitle="Calgary: Past flood in red")
@@ -504,12 +576,26 @@ Train_confusionmatrix<-
            ifelse(predict_flood==0 & flood ==1, "False_Negative",0)))))
 ggplot()+
   geom_sf(data=Train_confusionmatrix, aes(fill=factor(confusion_matrix)),color=NA) +
-  scale_fill_manual(values=c("red","lightskyblue","grey","royalblue"),
+  scale_fill_manual(values=c("#ee6c4d","#43aa8b","grey","#277da1"),
                     labels=c("False Negative","False Positive","True Negative","True Positive"),
                     name = "Confusion Matrix for Traning Set")+
   mapTheme()
 
-
+Train_confusionmatrix<-
+  cbind(modelTrain,trainProbs) %>%
+  mutate(trainProbs = round(trainProbs*100)) %>%
+  mutate(predict_flood = ifelse (trainProbs > 43.8,1,0)) %>%
+  mutate(confusion_matrix =
+           ifelse(predict_flood==1 & flood ==1, "True_Positive",
+           ifelse(predict_flood==1 & flood ==0,"False_Positive",
+           ifelse(predict_flood==0 & flood ==0, "True_Negative",
+           ifelse(predict_flood==0 & flood ==1, "False_Negative",0)))))
+ggplot()+
+  geom_sf(data=Train_confusionmatrix, aes(fill=factor(confusion_matrix)),color=NA) +
+  scale_fill_manual(values=c("#ee6c4d","#43aa8b","grey","#277da1"),
+                    labels=c("False Negative","False Positive","True Negative","True Positive"),
+                    name = "Confusion Matrix for Traning Set")+
+  mapTheme()
 ```
 
 ## Inundation Map for Calgary
@@ -520,11 +606,69 @@ c_predict_flood<-
 
 ggplot()+
   geom_sf(data=c_predict_flood, aes(fill=factor(predict_flood)),color=NA)+
-  scale_fill_manual(values = c("grey","darkred"),
+  scale_fill_manual(values = c(c_colors_hex),
                     labels=c("No Inundation","Inundation"),
                     name="Flood Prediction")+
   mapTheme()
 ```
+
+
+# Comparison with kernel density
+```{r}
+heroin_ppp <- as.ppp(st_coordinates(c_floodp), W = st_bbox(model_var_net)) 
+heroin_KD <- spatstat::density.ppp(heroin_ppp, 1000) # kernel density estimated using spatstat, # bigger the bigger window - lead to more smoothening
+
+heroin_KDE_sf <- as.data.frame(heroin_KD) %>%
+  st_as_sf(coords = c("x", "y"), crs = st_crs(model_var_net)) %>%
+  aggregate(., model_var_net, mean) %>%
+  mutate(label = "Kernel Density",
+         Risk_Category = ntile(value, 100),
+         Risk_Category = case_when(
+           Risk_Category >= 90 ~ "90% to 100%",
+           Risk_Category >= 70 & Risk_Category <= 89 ~ "70% to 89%",
+           Risk_Category >= 50 & Risk_Category <= 69 ~ "50% to 69%",
+           Risk_Category >= 30 & Risk_Category <= 49 ~ "30% to 49%",
+           Risk_Category >= 1 & Risk_Category <= 29 ~ "1% to 29%")) %>%
+  cbind(
+    aggregate(
+      dplyr::select(c_floodp) %>% mutate(floodCount = 1), ., sum) %>%
+    mutate(floodCount = replace_na(floodCount, 0))) %>%
+  dplyr::select(label, Risk_Category, floodCount)
+
+heroin_risk_sf <-
+  c_final3 %>%
+  mutate(label = "Risk Predictions",
+         Risk_Category = ntile(allPredictions/100, 100),
+         Risk_Category = case_when(
+           Risk_Category >= 90 ~ "90% to 100%",
+           Risk_Category >= 70 & Risk_Category <= 89 ~ "70% to 89%",
+           Risk_Category >= 50 & Risk_Category <= 69 ~ "50% to 69%",
+           Risk_Category >= 30 & Risk_Category <= 49 ~ "30% to 49%",
+           Risk_Category >= 1 & Risk_Category <= 29 ~ "1% to 29%")) %>%
+  cbind(
+    aggregate(
+      dplyr::select(c_final3) %>% mutate(floodCount = 1), ., sum) %>%
+      mutate(floodCount = replace_na(floodCount, 0))) %>%
+  dplyr::select(label,Risk_Category, floodCount)
+
+rbind(heroin_KDE_sf, heroin_risk_sf) %>%
+  na.omit() %>%
+  gather(Variable, Value, -label, -Risk_Category, -geometry) %>%
+  ggplot() +
+    geom_sf(aes(fill = Risk_Category), colour = NA) +
+    geom_sf(data=c_flood_net %>% 
+               filter(c_flood == 1), 
+               fill="#ee6c4d",colour=NA) +
+    facet_wrap(~label, ) +
+    scale_fill_brewer(type = "seq",
+                              palette = 1,
+                              direction = 1,
+                              aesthetics = "fill") +
+    labs(title="Comparison of Kernel Density and Risk Predictions",
+         subtitle="Calgary: Past flood in red") +
+    mapTheme()
+```
+
 
 # Prediction for Denver
 ## Visualization
@@ -572,7 +716,10 @@ Denver_flood<-
 
 ggplot() + 
     geom_sf(data=Denver_flood, aes(fill=factor(ntile(allPredictions,5))), colour=NA) +
-    scale_fill_manual(values = c("#edf8fb","#b3cde3","#8c96c6","#8856a7","#810f7c"),
+    scale_fill_brewer(type = "seq",
+                              palette = 4,
+                              direction = 1,
+                              aesthetics = "fill",
                       labels=as.character(quantile(Denver_flood$allPredictions,
                                                  c(0.1,.2,.4,.6,.8),na.rm=T)),
                       name="Predicted\nProbabilities(%)\n(Quintile\nBreaks)") +
@@ -588,7 +735,7 @@ d_predict_flood<-
 
 ggplot()+
   geom_sf(data=d_predict_flood, aes(fill=factor(predict_flood)),color=NA)+
-  scale_fill_manual(values = c("grey","darkred"),
+  scale_fill_manual(values = c(d_colors_hex),
                     labels=c("No Inundation","Inundation"),
                     name="Flood Prediction")+
   mapTheme()
